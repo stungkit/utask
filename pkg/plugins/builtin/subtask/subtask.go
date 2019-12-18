@@ -50,12 +50,12 @@ func validConfig(config interface{}) error {
 
 	dbp, err := zesty.NewDBProvider(utask.DBName)
 	if err != nil {
-		return err
+		return fmt.Errorf("can't retrieve connexion to DB: %s", err)
 	}
 
 	_, err = tasktemplate.LoadFromName(dbp, cfg.Template)
 	if err != nil {
-		return err
+		return fmt.Errorf("can't load template from name: %s", err)
 	}
 
 	return nil
@@ -93,7 +93,7 @@ func exec(stepName string, config interface{}, ctx interface{}) (interface{}, in
 		if cfg.ResolverUsernames != "" {
 			resolverUsernames, err = utils.ConvertJSONRowToSlice(cfg.ResolverUsernames)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, fmt.Errorf("can't convert JSON to row slice: %s", err)
 			}
 		}
 
