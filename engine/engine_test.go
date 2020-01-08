@@ -531,6 +531,16 @@ func TestVariables(t *testing.T) {
 	assert.Equal(t, "5", payload["bidule"])
 }
 
+func TestPreHooks(t *testing.T) {
+	res, err := createResolution("preHooks.yaml", map[string]interface{}{}, nil)
+	assert.NotNil(t, res)
+	assert.Nil(t, err)
+
+	res, err = runResolution(res)
+	assert.NotNil(t, res)
+	assert.Nil(t, err)
+}
+
 const (
 	singleString    = "hello"
 	multilineString = `Un,

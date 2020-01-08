@@ -33,7 +33,7 @@ const (
 	StatePaused            = "PAUSED"             // pause execution in order to make safe updates
 	StateBlockedToCheck    = "BLOCKED_TOCHECK"    // blocked by a crash, needs human intervention
 	StateBlockedBadRequest = "BLOCKED_BADREQUEST" // blocked by client error, bad input, etc..
-	StateBlockedDeadlock   = "BLOCKED_DEADLOCK"   // blocked by unsolvable dependencies
+	StateBlockedDeadlock   = "BLOCKED_DEADLOCK"   // blocked by unsolvable dependencies or prehooks
 	StateBlockedMaxRetries = "BLOCKED_MAXRETRIES" // has reached max retries, still failing
 	StateBlockedFatal      = "BLOCKED_FATAL"      // encountered a fatal non-client error
 
@@ -237,6 +237,21 @@ func (r *Resolution) BuildStepTree() {
 				treeIdxPrune[dName] = append(treeIdxPrune[dName], name)
 			}
 		}
+
+		for _, ph := range s.PreHooks {
+			dName, dState := step.DependencyParts(ph)
+			if treeIdx[dName] == nil {
+				treeIdx[dName] = []string{}
+			}
+			treeIdx[dName] = append(treeIdx[dName], name)
+			if dState != step.StateAny {
+				if treeIdxPrune[dName] == nil {
+					treeIdxPrune[dName] = []string{}
+				}
+				treeIdxPrune[dName] = append(treeIdxPrune[dName], name)
+			}
+		}
+
 		stepList = append(stepList, name)
 	}
 

@@ -83,7 +83,13 @@ func canImpactState(sourceStep, destinationStep string, steps map[string]*Step) 
 	sourceChain := dependenciesChain(steps, steps[sourceStep].Dependencies)
 	destinationChain := dependenciesChain(steps, steps[destinationStep].Dependencies)
 
-	return utils.ListContainsString(sourceChain, destinationStep) || utils.ListContainsString(destinationChain, sourceStep)
+	sourcePh := prehooksChain(steps, steps[sourceStep].PreHooks)
+	destinationPh := prehooksChain(steps, steps[destinationStep].PreHooks)
+
+	return utils.ListContainsString(sourceChain, destinationStep) ||
+		utils.ListContainsString(destinationChain, sourceStep) ||
+		utils.ListContainsString(sourcePh, destinationStep) ||
+		utils.ListContainsString(destinationPh, sourceStep)
 }
 
 // dependenciesChain build a chain of dependencies given a list of dependencies, usually
@@ -104,6 +110,31 @@ func dependenciesChain(steps map[string]*Step, dependencies []string) []string {
 	for i := 0; i < len(chain); i++ {
 		for _, stepDep := range steps[chain[i]].Dependencies {
 			s, _ := DependencyParts(stepDep)
+
+			// Grow the slice and avoid visited nodes
+			if !utils.ListContainsString(chain, s) {
+				chain = append(chain, s)
+			}
+		}
+	}
+	return chain
+}
+
+func prehooksChain(steps map[string]*Step, prehooks []string) []string {
+	// Discard dependencies state
+	chain := []string{}
+	for _, ph := range prehooks {
+		stepName, _ := DependencyParts(ph)
+
+		// No duplicates
+		if !utils.ListContainsString(chain, stepName) {
+			chain = append(chain, stepName)
+		}
+	}
+
+	for i := 0; i < len(chain); i++ {
+		for _, stepPh := range steps[chain[i]].PreHooks {
+			s, _ := DependencyParts(stepPh)
 
 			// Grow the slice and avoid visited nodes
 			if !utils.ListContainsString(chain, s) {

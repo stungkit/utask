@@ -93,6 +93,7 @@ type Step struct {
 
 	// flow control
 	Dependencies []string     `json:"dependencies,omitempty"`
+	PreHooks     []string     `json:"pre_hooks,omitempty"`
 	CustomStates []string     `json:"custom_states,omitempty"`
 	Conditions   []*Condition `json:"conditions,omitempty"`
 	skipped      bool
@@ -430,6 +431,25 @@ func (st *Step) ValidAndNormalize(name string, baseConfigs map[string]json.RawMe
 	// no circular dependencies,
 	sourceChain := dependenciesChain(steps, st.Dependencies)
 	if utils.ListContainsString(sourceChain, name) {
+		return errors.NotValidf("Invalid: circular dependency %v <-> %s", sourceChain, st.Name)
+	}
+
+	// valid prehooks
+	for _, phStep := range st.PreHooks {
+		phStep, phState := DependencyParts(phStep)
+		s, ok := steps[phStep]
+		fmt.Println(steps[phStep])
+		if !ok {
+			return errors.NotValidf("Invalid dependency, no step with that name: %s", phStep)
+		}
+		if phState != StateDone && phState != StateAny && !utils.ListContainsString(s.CustomStates, phState) {
+			return errors.NotValidf("Invalid dependency on step %s, step state not allowed: %s", phStep, phState)
+		}
+	}
+
+	// no circular prehooks,
+	phChain := prehooksChain(steps, st.PreHooks)
+	if utils.ListContainsString(phChain, name) {
 		return errors.NotValidf("Invalid: circular dependency %v <-> %s", sourceChain, st.Name)
 	}
 

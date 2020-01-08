@@ -1,0 +1,13 @@
+name: preHooks
+description: preHooks feature
+title_format: "[test] preHooks feature"
+steps:
+    firstStepSuccess:
+        action:
+            type: echo
+            configuration: {output: {value: foo}}
+    SecondStep:
+        pre_hooks: [firstStepSuccess]
+        action:
+            type: echo
+            configuration: {output: {value: foo}}

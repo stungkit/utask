@@ -601,6 +601,7 @@ func expandStep(s *step.Step, res *resolution.Resolution) {
 			RetryPattern: s.RetryPattern,
 			MaxRetries:   s.MaxRetries,
 			Dependencies: s.Dependencies,
+			PreHooks:     s.PreHooks,
 			CustomStates: s.CustomStates,
 			Conditions:   s.Conditions,
 			Item:         item,
@@ -612,6 +613,7 @@ func expandStep(s *step.Step, res *resolution.Resolution) {
 	for i := range items {
 		childStepName := fmt.Sprintf("%s-%d", s.Name, i)
 		s.Dependencies = append(s.Dependencies, childStepName+":ANY")
+		s.PreHooks = append(s.PreHooks, childStepName+":ANY")
 		s.ChildrenSteps = append(s.ChildrenSteps, childStepName)
 		s.ChildrenStepMap[childStepName] = true
 	}
@@ -642,6 +644,17 @@ func contractStep(s *step.Step, res *resolution.Resolution) string {
 	}
 	s.Error = ""
 	s.Children = collectedChildren
+
+	// clean up prehooks on children
+	var cleanPreHooks []string
+	for _, ph := range s.PreHooks {
+		stepName, _ := step.DependencyParts(ph)
+		if !s.ChildrenStepMap[stepName] {
+			cleanPreHooks = append(cleanPreHooks, ph)
+		}
+	}
+
+	s.PreHooks = cleanPreHooks
 
 	// clean up dependency on children
 	var cleanDependencies []string
@@ -675,6 +688,15 @@ func pruneSteps(res *resolution.Resolution, modifiedSteps map[string]bool) {
 						depStep, depState := step.DependencyParts(childDep)
 						if depStep == stepName {
 							if res.Steps[stepName].State != depState {
+								res.Steps[childStep].State = step.StatePrune
+								recursiveModif[childStep] = true
+							}
+						}
+					}
+					for _, childPh := range res.Steps[childStep].PreHooks {
+						phStep, phState := step.DependencyParts(childPh)
+						if phStep == stepName {
+							if res.Steps[stepName].State != phState {
 								res.Steps[childStep].State = step.StatePrune
 								recursiveModif[childStep] = true
 							}
@@ -731,6 +753,24 @@ func availableSteps(modifiedSteps map[string]bool, res *resolution.Resolution, e
 						s.State != step.StateExpanded && // expanded is the only state in which it may have a legit dependency on its children
 						s.ChildrenStepMap[depStep] && // the unmet dependency is indeed a child of the step
 						res.Steps[depStep].State != step.StateRunning { // the child is not running currently
+						continue
+					}
+					// in every other case, an unmet dependency
+					elligible = false
+					break
+				}
+			}
+			for _, ph := range s.PreHooks {
+				phStep, phState := step.DependencyParts(ph)
+				if (res.Steps[phStep].State != phState) && // elligibility check: step state matches dependency target
+					!(phState == step.StateAny && res.Steps[phStep].IsFinal()) { // eligibility check: depdency on ANY with step in a final state {
+					// a loop step which gets retried should ignore previous children.
+					// children steps are stored as dependencies, so we check if the unmet dependency is a child.
+					// if it is, we ignore it unless it is already running (to avoid weird behavior when the result comes back)
+					if s.ForEach != "" && // it's a loop step
+						s.State != step.StateExpanded && // expanded is the only state in which it may have a legit dependency on its children
+						s.ChildrenStepMap[phStep] && // the unmet dependency is indeed a child of the step
+						res.Steps[phStep].State != step.StateRunning { // the child is not running currently
 						continue
 					}
 					// in every other case, an unmet dependency
